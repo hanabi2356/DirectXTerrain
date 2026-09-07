@@ -16,26 +16,36 @@ namespace
 	public:
 		explicit PerlinNoise(unsigned int seed)
 		{
+			// 0~255 를 채운 뒤 시드로 섞는다. 이 순서가 지형의 생김새를 결정한다.
 			std::iota(m_permutation, m_permutation + 256, 0);
 
 			std::mt19937 rng(seed);
 			std::shuffle(m_permutation, m_permutation + 256, rng);
 
+			// 뒤쪽 256 개에 같은 내용을 복사해 둔다.
+			// 조회할 때 인덱스가 최대 511 까지 올라가는데, 이러면 범위 검사를 생략할 수 있다.
 			for (int i = 0; i < 256; ++i)
 			{
 				m_permutation[256 + i] = m_permutation[i];
 			}
 		}
 
+		// 좌표가 속한 격자 칸의 네 모서리에서 그래디언트 내적을 구한 뒤 부드럽게 섞는다.
+		// 정수 좌표에서는 항상 0 이 나오므로, 호출부에서 주파수에 정수를 넣으면 지형이 평평해진다.
 		float Sample(float x, float y) const
 		{
+			// 격자 칸의 좌표(정수부)와 칸 안에서의 위치(소수부)로 나눈다.
 			const int xi = static_cast<int>(std::floor(x)) & 255;
 			const int yi = static_cast<int>(std::floor(y)) & 255;
 			const float xf = x - std::floor(x);
 			const float yf = y - std::floor(y);
+
+			// 그대로 선형 보간하면 칸 경계가 눈에 보인다. Fade 로 완만하게 만든다.
 			const float u = Fade(xf);
 			const float v = Fade(yf);
 
+			// 네 모서리의 그래디언트를 순열 테이블로 결정한다. 같은 모서리는 항상 같은 값이 나와
+			// 이웃한 칸끼리 경계가 매끄럽게 이어진다.
 			const int aa = m_permutation[m_permutation[xi] + yi];
 			const int ab = m_permutation[m_permutation[xi] + yi + 1];
 			const int ba = m_permutation[m_permutation[xi + 1] + yi];
@@ -47,9 +57,14 @@ namespace
 		}
 
 	private:
+		// 개선판 펄린 노이즈의 5차 보간 함수 6t^5 - 15t^4 + 10t^3.
+		// 격자 경계에서 1차뿐 아니라 2차 도함수까지 0 이라 격자선이 드러나지 않는다.
 		static float Fade(float t) { return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f); }
+
 		static float Lerp(float a, float b, float t) { return a + t * (b - a); }
 
+		// 해시 하위 2비트로 (1,1) (-1,1) (1,-1) (-1,-1) 중 하나를 골라 내적한 결과와 같다.
+		// 곱셈 없이 부호만 바꾸면 되므로 이렇게 펼쳐 쓴다.
 		static float Grad(int hash, float x, float y)
 		{
 			switch (hash & 3)
@@ -87,6 +102,9 @@ HeightField HeightField::MakePerlin(UINT width, UINT depth,
 	{
 		for (UINT x = 0; x < width; ++x)
 		{
+			// 옥타브를 겹쳐 쌓는다(fBm).
+			// 주파수를 두 배로 올리고 진폭을 절반으로 줄이면서 더하면,
+			// 큰 산맥 위에 작은 굴곡이 얹히는 자연스러운 지형이 된다.
 			float value = 0.0f;
 			float currentFrequency = frequency;
 			float currentAmplitude = amplitude;
@@ -123,6 +141,7 @@ bool TerrainMesh::Build(GraphicsCore& core, const HeightField& field, float cell
 		return false;
 	}
 
+	// 지형의 중심이 원점에 오도록 절반만큼 빼준다.
 	const float halfWidth = (width - 1) * cellSize * 0.5f;
 	const float halfDepth = (depth - 1) * cellSize * 0.5f;
 

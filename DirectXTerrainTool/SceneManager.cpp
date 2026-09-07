@@ -1,6 +1,7 @@
 ﻿#include "SceneManager.h"
 #include "GraphicsCore.h"
 #include "FlatGridScene.h"
+#include "PerlinNoiseScene.h"
 
 std::unique_ptr<Scene> SceneManager::Create(SampleId id)
 {
@@ -8,6 +9,9 @@ std::unique_ptr<Scene> SceneManager::Create(SampleId id)
 	{
 	case SampleId::FlatGrid:
 		return std::make_unique<FlatGridScene>();
+
+	case SampleId::PerlinNoise:
+		return std::make_unique<PerlinNoiseScene>();
 
 	// 남은 샘플은 여기에 한 줄씩 추가한다.
 	default:
@@ -60,4 +64,14 @@ void SceneManager::Render(GraphicsCore& core, const Camera& camera, bool wirefra
 	{
 		m_scene->Render(core, camera, wireframe);
 	}
+}
+
+DirectX::XMFLOAT3 SceneManager::GetCameraStartPosition() const
+{
+	return m_scene ? m_scene->GetCameraStartPosition() : DirectX::XMFLOAT3{ 0.0f, 45.0f, -95.0f };
+}
+
+DirectX::XMFLOAT3 SceneManager::GetCameraStartTarget() const
+{
+	return m_scene ? m_scene->GetCameraStartTarget() : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f };
 }

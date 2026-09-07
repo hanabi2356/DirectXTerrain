@@ -66,6 +66,8 @@ bool Window::RegisterWindowClass()
 
 bool Window::CreateAppWindow(UINT width, UINT height, const wchar_t* title)
 {
+	// CreateWindow 는 테두리를 포함한 전체 크기를 받는다.
+	// 원하는 그리기 영역이 정확히 width x height 가 되도록 테두리 두께만큼 키워준다.
 	RECT windowRect = { 0, 0, static_cast<LONG>(width), static_cast<LONG>(height) };
 	AdjustWindowRect(&windowRect, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -84,7 +86,7 @@ bool Window::CreateAppWindow(UINT width, UINT height, const wchar_t* title)
 		nullptr,
 		nullptr,
 		m_hInstance,
-		this);
+		this);   // 이 포인터가 WM_NCCREATE 로 전달되어 창과 인스턴스를 연결한다.
 
 	return m_hWnd != nullptr;
 }
@@ -97,15 +99,20 @@ void Window::UpdateClientSize()
 	m_clientHeight = static_cast<UINT>(clientRect.bottom - clientRect.top);
 }
 
+// Win32 는 멤버 함수를 창 프로시저로 등록할 수 없다.
+// 그래서 정적 함수를 등록해 두고, 창에 붙여둔 사용자 데이터에서 인스턴스를 꺼내 넘긴다.
 LRESULT CALLBACK Window::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	Window* window = nullptr;
 
 	if (message == WM_NCCREATE)
 	{
+		// 창이 만들어질 때 딱 한 번, CreateWindowEx 에 넘긴 this 를 여기서 받아 저장해 둔다.
 		const auto* createStruct = reinterpret_cast<CREATESTRUCTW*>(lParam);
 		window = static_cast<Window*>(createStruct->lpCreateParams);
 		SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+
+		// Initialize 가 아직 반환되기 전이라 m_hWnd 가 비어 있다. 여기서 채워준다.
 		window->m_hWnd = hWnd;
 	}
 	else
@@ -161,12 +168,15 @@ LRESULT Window::HandleMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 			}
 			else if (!m_resizing)
 			{
+				// 드래그로 끄는 중이라면 WM_SIZE 가 수십 번 날아온다.
+				// 그때마다 스왑체인을 다시 만들면 버벅이므로, 드래그가 끝날 때 한 번만 처리한다.
 				m_sizeChanged = true;
 			}
 		}
 		return 0;
 	}
 
+	// 테두리 드래그 시작과 끝. 이 사이에서는 렌더링과 스왑체인 재생성을 미룬다.
 	case WM_ENTERSIZEMOVE:
 		m_resizing = true;
 		return 0;
@@ -177,6 +187,7 @@ LRESULT Window::HandleMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 		m_sizeChanged = true;
 		return 0;
 
+	// 창이 0 픽셀까지 줄어들면 스왑체인 생성이 실패하므로 최소 크기를 정해둔다.
 	case WM_GETMINMAXINFO:
 	{
 		auto* minMaxInfo = reinterpret_cast<MINMAXINFO*>(lParam);

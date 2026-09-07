@@ -20,6 +20,9 @@ public:
 	bool HasScene() const { return m_scene != nullptr; }
 	SampleId GetCurrent() const { return m_current; }
 
+	DirectX::XMFLOAT3 GetCameraStartPosition() const;
+	DirectX::XMFLOAT3 GetCameraStartTarget() const;
+
 private:
 	static std::unique_ptr<Scene> Create(SampleId id);
 

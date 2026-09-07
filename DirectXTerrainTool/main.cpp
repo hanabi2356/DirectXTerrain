@@ -64,13 +64,16 @@ int APIENTRY wWinMain(
 	}
 
 	SceneManager scenes;
+
 	Camera camera;
 	camera.SetPerspective(DirectX::XM_PIDIV4, AspectOf(graphics), 0.5f, 2000.0f);
 	camera.LookAt({ 0.0f, 0.0f, 0.0f });
 
-	bool inMenu = true;
-	bool wireframe = false;
-	bool sampleReady = false;
+	bool inMenu = true;        // 메뉴 화면인지 샘플 화면인지
+	bool wireframe = false;    // F1 로 전환
+	bool sampleReady = false;  // 선택한 샘플이 아직 구현되지 않았으면 false
+
+	// 입력은 창이 콜백으로 넘겨준다. 화면 상태에 따라 메뉴와 카메라 중 한쪽에만 전달한다.
 
 	window.SetKeyDownHandler([&](WPARAM key)
 	{
@@ -134,6 +137,8 @@ int APIENTRY wWinMain(
 
 	while (running)
 	{
+		// GetMessage 는 메시지가 올 때까지 멈춰버린다.
+		// 게임 루프는 입력이 없어도 계속 그려야 하므로 PeekMessage 로 훑기만 한다.
 		while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
 			if (msg.message == WM_QUIT)
@@ -151,12 +156,15 @@ int APIENTRY wWinMain(
 			break;
 		}
 
+		// 최소화 상태에서는 그릴 화면이 없고, 크기 조절 중에는 스왑체인이 흔들린다.
+		// 둘 다 렌더링을 쉬면서 CPU 도 놀린다.
 		if (window.IsMinimized() || window.IsResizing())
 		{
 			Sleep(16);
 			continue;
 		}
 
+		// 프레임 간격을 잰다. 카메라 이동 속도를 프레임률과 무관하게 만들기 위함이다.
 		LARGE_INTEGER currentTime = {};
 		QueryPerformanceCounter(&currentTime);
 		const float deltaTime =
@@ -180,8 +188,8 @@ int APIENTRY wWinMain(
 			sampleReady = scenes.Switch(graphics, picked);
 			inMenu = false;
 
-			camera.SetPosition({ 0.0f, 45.0f, -95.0f });
-			camera.LookAt({ 0.0f, 0.0f, 0.0f });
+			camera.SetPosition(scenes.GetCameraStartPosition());
+			camera.LookAt(scenes.GetCameraStartTarget());
 			camera.EndDrag();
 		}
 
@@ -210,6 +218,7 @@ int APIENTRY wWinMain(
 
 		graphics.BeginFrame();
 
+		// 3D 를 먼저 그리고 그 위에 UI 를 얹는다. 둘 다 같은 커맨드 리스트에 기록된다.
 		if (!inMenu)
 		{
 			scenes.Render(graphics, camera, wireframe);

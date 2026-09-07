@@ -64,6 +64,8 @@ bool TextRenderer::BuildFontAtlas(ID3D12Device* device, ID3D12CommandQueue* queu
     {
         return false;
     }
+    // 높이를 음수로 주면 내부 여백을 뺀 실제 글자 크기를 뜻한다.
+    // ANTIALIASED_QUALITY 로 계단 현상 없는 회색조 글자를 얻는다.
     HFONT font = CreateFontW(
         -fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -86,6 +88,8 @@ bool TextRenderer::BuildFontAtlas(ID3D12Device* device, ID3D12CommandQueue* queu
     {
         SIZE size = {};
         GetTextExtentPoint32W(hdc, &ch, 1, &size);
+
+        // 가로가 넘치면 다음 줄로 내린다. 글자를 왼쪽 위부터 차곡차곡 채우는 단순한 배치다.
         if (penX + static_cast<UINT>(size.cx) + Padding > AtlasWidth)
         {
             penX = Padding;
@@ -210,6 +214,8 @@ bool TextRenderer::CreatePipeline(ID3D12Device* device, DXGI_FORMAT rtvFormat)
 {
     CD3DX12_DESCRIPTOR_RANGE srvRange;
     srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    // 0번은 픽셀 셰이더가 읽을 아틀라스 텍스처, 1번은 정점 셰이더가 쓸 화면 크기 값이다.
+    // 값이 두 개뿐이라 상수 버퍼를 따로 만들지 않고 루트에 직접 심는다(루트 상수).
     CD3DX12_ROOT_PARAMETER rootParameters[2];
     rootParameters[0].InitAsDescriptorTable(1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
     rootParameters[1].InitAsConstants(2, 0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
@@ -273,7 +279,8 @@ bool TextRenderer::CreatePipeline(ID3D12Device* device, DXGI_FORMAT rtvFormat)
     psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
     psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     psoDesc.BlendState.RenderTarget[0] = blend;
-    psoDesc.DepthStencilState.DepthEnable = FALSE;   // UI 는 깊이 테스트 없음
+    // UI 는 항상 지형 위에 그려져야 하므로 깊이 테스트를 끈다.
+    psoDesc.DepthStencilState.DepthEnable = FALSE;
     psoDesc.DepthStencilState.StencilEnable = FALSE;
     psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;       // 바인딩된 DSV 와 포맷만 맞춘다
     psoDesc.SampleMask = UINT_MAX;
@@ -328,6 +335,7 @@ void TextRenderer::Draw(const std::wstring& text, float x, float y,
         {
             continue;   // 아틀라스에 없는 문자는 건너뛴다
         }
+        // 글자 하나를 사각형으로 만든다. 삼각형 두 개라 정점이 여섯 개다.
         const Glyph& glyph = found->second;
         const float left = penX;
         const float top = penY;
@@ -365,6 +373,9 @@ void TextRenderer::Record(ID3D12GraphicsCommandList* commandList, UINT frameInde
     const size_t vertexCount =
         (std::min)(m_vertices.size(), static_cast<size_t>(MaxCharsPerFrame) * VerticesPerChar);
     const UINT byteSize = static_cast<UINT>(vertexCount * sizeof(Vertex));
+
+    // 업로드 힙에 계속 매핑해 둔 버퍼라 memcpy 한 번이면 GPU 가 볼 수 있다.
+    // 프레임마다 버퍼가 따로 있으므로 GPU 가 읽는 중인 데이터를 덮어쓸 걱정은 없다.
     memcpy(m_mappedVertices[frameIndex], m_vertices.data(), byteSize);
     m_vertexBufferViews[frameIndex].SizeInBytes = byteSize;
     ID3D12DescriptorHeap* heaps[] = { m_srvHeap.Get() };

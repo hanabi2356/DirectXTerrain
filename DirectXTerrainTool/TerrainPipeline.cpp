@@ -9,27 +9,29 @@ using namespace DirectX;
 namespace
 {
 	// 정점을 변환하고 램버트 조명만 입히는 최소 셰이더.
-	// 솔리드 상태에서도 격자가 보이도록 UV 기반 체커 패턴을 얹는다.
+	// 색은 높이에 따라 세 단계로 섞고, 솔리드 상태에서도 격자가 보이도록 체커를 얹는다.
 	constexpr char ShaderSource[] = R"(
 cbuffer FrameConstants : register(b0)
 {
     float4x4 viewProjection;
     float4   lightDirection;
     float4   cameraPosition;
+    float4   terrainParams;
 };
 
 struct VSInput
 {
     float3 position : POSITION;
     float3 normal   : NORMAL;
-    float2 uv       : TEXCOORD;
+    float2 uv       : TEXCOORD0;
 };
 
 struct PSInput
 {
     float4 position : SV_POSITION;
     float3 normal   : NORMAL;
-    float2 uv       : TEXCOORD;
+    float2 uv       : TEXCOORD0;
+    float  height   : TEXCOORD1;
 };
 
 PSInput VSMain(VSInput input)
@@ -38,20 +40,30 @@ PSInput VSMain(VSInput input)
     output.position = mul(float4(input.position, 1.0f), viewProjection);
     output.normal   = input.normal;
     output.uv       = input.uv;
+    output.height   = input.position.y;
     return output;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float3 normal = normalize(input.normal);
+    float3 normal  = normalize(input.normal);
     float3 toLight = normalize(-lightDirection.xyz);
-    float lambert = saturate(dot(normal, toLight));
+    float  lambert = saturate(dot(normal, toLight));
+
+    float t = saturate(input.height / terrainParams.x * 0.5f + 0.5f);
+
+    float3 lowColor  = float3(0.22f, 0.30f, 0.16f);
+    float3 midColor  = float3(0.38f, 0.50f, 0.29f);
+    float3 highColor = float3(0.66f, 0.64f, 0.56f);
+
+    float3 baseColor = (t < 0.5f)
+        ? lerp(lowColor, midColor, t * 2.0f)
+        : lerp(midColor, highColor, (t - 0.5f) * 2.0f);
 
     float2 cell = step(0.5f, frac(input.uv * 32.0f));
-    float checker = lerp(0.82f, 1.0f, abs(cell.x - cell.y));
+    float checker = lerp(0.90f, 1.0f, abs(cell.x - cell.y));
 
-    float3 baseColor = float3(0.36f, 0.48f, 0.28f) * checker;
-    float3 color = baseColor * (0.30f + 0.70f * lambert);
+    float3 color = baseColor * checker * (0.30f + 0.70f * lambert);
     return float4(color, 1.0f);
 }
 )";
@@ -181,6 +193,9 @@ void TerrainPipeline::Bind(ID3D12GraphicsCommandList* commandList, UINT frameInd
 
 	const XMFLOAT3& position = camera.GetPosition();
 	constants.cameraPosition = { position.x, position.y, position.z, 1.0f };
+
+	// 0 으로 나누지 않도록 최소값을 둔다.
+	constants.terrainParams = { (m_heightScale > 0.0001f) ? m_heightScale : 1.0f, 0.0f, 0.0f, 0.0f };
 
 	memcpy(m_mappedConstants[frameIndex], &constants, sizeof(constants));
 

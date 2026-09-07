@@ -43,6 +43,7 @@ XMVECTOR Camera::GetForward() const
 
 void Camera::Update(float deltaTime)
 {
+	// 왼손 좌표계에서 위쪽과 앞쪽을 외적하면 오른쪽 방향이 나온다.
 	const XMVECTOR forward = GetForward();
 	const XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	const XMVECTOR right = XMVector3Normalize(XMVector3Cross(worldUp, forward));
@@ -60,6 +61,7 @@ void Camera::Update(float deltaTime)
 		return;
 	}
 
+	// deltaTime 을 곱해야 프레임률이 달라져도 같은 속도로 움직인다.
 	const float speed = m_moveSpeed * (IsKeyDown(VK_SHIFT) ? 4.0f : 1.0f) * deltaTime;
 	const XMVECTOR delta = XMVectorScale(XMVector3Normalize(movement), speed);
 	XMStoreFloat3(&m_position, XMVectorAdd(XMLoadFloat3(&m_position), delta));

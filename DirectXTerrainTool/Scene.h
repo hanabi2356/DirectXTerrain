@@ -31,4 +31,8 @@ public:
 	virtual bool Initialize(GraphicsCore& core) = 0;
 	virtual void Update(float /*deltaTime*/) {}
 	virtual void Render(GraphicsCore& core, const Camera& camera, bool wireframe) = 0;
+
+	// 지형 크기가 샘플마다 달라서 진입 직후의 카메라 위치도 씬이 정하게 둔다.
+	virtual DirectX::XMFLOAT3 GetCameraStartPosition() const { return { 0.0f, 45.0f, -95.0f }; }
+	virtual DirectX::XMFLOAT3 GetCameraStartTarget() const { return { 0.0f, 0.0f, 0.0f }; }
 };

@@ -10,6 +10,7 @@ namespace
 }
 MenuScene::MenuScene()
 {
+	// 항목 순서가 곧 화면 순서이고, 숫자 키 배정도 이 순서를 따른다.
 	m_items = {
 		{ SampleId::FlatGrid,         L"1. 기본 평면 그리드 (Basic Flat Grid)", {} },
 		{ SampleId::PerlinNoise,      L"2. 펄린 노이즈 지형 (Perlin Noise)", {} },
@@ -38,10 +39,12 @@ void MenuScene::OnKeyDown(WPARAM key)
 	case '8': m_pending = SampleId::SkyDome;          return;
 	case '9': m_pending = SampleId::PerturbedClouds;  return;
 	case '0': m_pending = SampleId::InfiniteChunks;   return;
+	// 6-2 번 항목은 숫자 하나로 표현할 수 없어 빼기 키에 배정했다.
 	case VK_OEM_MINUS:
 	case VK_SUBTRACT:
 		m_pending = SampleId::DistanceLod2;
 		return;
+	// 위아래 화살표로 포커스를 옮기고 엔터로 실행할 수도 있다.
 	case VK_UP:
 		m_focused = (m_focused + static_cast<int>(m_items.size()) - 1) % static_cast<int>(m_items.size());
 		return;
@@ -63,6 +66,7 @@ void MenuScene::OnMouseMove(int x, int y)
 {
 	const float fx = static_cast<float>(x);
 	const float fy = static_cast<float>(y);
+	// 마우스가 올라간 항목을 키보드 포커스와 같은 것으로 취급해 하이라이트를 일치시킨다.
 	m_hovered = -1;
 	for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
 	{
@@ -87,6 +91,7 @@ void MenuScene::OnMouseDown(int x, int y)
 		}
 	}
 }
+// 선택을 한 번만 소비하게 해서, main 의 루프가 매 프레임 같은 샘플을 다시 여는 것을 막는다.
 SampleId MenuScene::ConsumeSelection()
 {
 	const SampleId selected = m_pending;
@@ -106,9 +111,11 @@ void MenuScene::Render(TextRenderer& text, UINT screenWidth, UINT screenHeight)
 	UNREFERENCED_PARAMETER(screenHeight);
 	const float centerX = static_cast<float>(screenWidth) * 0.5f;
 	const float lineHeight = text.GetLineHeight();
+	// 제목과 안내문은 각각 가운데 정렬한다.
 	text.Draw(m_title, centerX - text.MeasureWidth(m_title) * 0.5f, TitleY, ColorAccent);
 	text.Draw(m_guide, centerX - text.MeasureWidth(m_guide) * 0.5f, GuideY, ColorGuide);
-	// 가장 긴 항목을 기준으로 블록 전체를 가운데 정렬한다.
+	// 항목마다 길이가 달라 각자 가운데 정렬하면 들쭉날쭉해진다.
+	// 가장 긴 항목을 기준으로 블록 전체를 가운데 정렬하고, 안에서는 왼쪽 맞춤으로 둔다.
 	float widestItem = 0.0f;
 	for (const MenuItem& item : m_items)
 	{
@@ -127,6 +134,8 @@ void MenuScene::Render(TextRenderer& text, UINT screenWidth, UINT screenHeight)
 		y += ItemSpacing;
 	}
 }
+// TextRenderer 는 아틀라스에 구워둔 글자만 그릴 수 있다.
+// 메뉴에 쓰이는 문자열을 훑어 필요한 문자를 빠짐없이 모아준다.
 std::wstring MenuScene::BuildCharset() const
 {
 	std::set<wchar_t> unique;
