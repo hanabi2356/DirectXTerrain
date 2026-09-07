@@ -2,6 +2,8 @@
 #include "GraphicsCore.h"
 #include "TextRenderer.h"
 #include "MenuScene.h"
+#include "SceneManager.h"
+#include "Camera.h"
 
 #include <cstdio>
 
@@ -12,10 +14,19 @@ namespace
 	constexpr int FontHeight = 18;
 	constexpr const wchar_t* AppTitle = L"DirectX Terrain Tool";
 
-	const std::wstring HudHint = L"ESC: 메뉴로 돌아가기   W: 와이어프레임 토글";
+	const std::wstring HudHint =
+		L"ESC: 메뉴로   F1: 와이어프레임   우클릭 드래그: 시점   WASD / Q,E: 이동   Shift: 가속";
+	const std::wstring NotReadyText =
+		L"이 샘플은 아직 준비 중입니다. ESC 를 눌러 메뉴로 돌아가세요.";
 
 	const DirectX::XMFLOAT4 HudColor = { 0.92f, 0.94f, 1.00f, 1.0f };
 	const DirectX::XMFLOAT4 HintColor = { 0.70f, 0.78f, 0.95f, 1.0f };
+	const DirectX::XMFLOAT4 WarnColor = { 1.00f, 0.72f, 0.42f, 1.0f };
+
+	float AspectOf(const GraphicsCore& graphics)
+	{
+		return static_cast<float>(graphics.GetWidth()) / static_cast<float>(graphics.GetHeight());
+	}
 }
 
 int APIENTRY wWinMain(
@@ -45,54 +56,66 @@ int APIENTRY wWinMain(
 	MenuScene menu;
 
 	TextRenderer text;
-	if (!text.Initialize(graphics, L"맑은 고딕", FontHeight, menu.BuildCharset() + HudHint))
+	if (!text.Initialize(graphics, L"맑은 고딕", FontHeight,
+			menu.BuildCharset() + HudHint + NotReadyText))
 	{
 		MessageBoxW(nullptr, L"텍스트 렌더러 초기화에 실패했습니다.", AppTitle, MB_OK | MB_ICONERROR);
 		return -1;
 	}
 
-	SampleId currentSample = SampleId::None;   // None 이면 메인 메뉴 화면
+	SceneManager scenes;
+	Camera camera;
+	camera.SetPerspective(DirectX::XM_PIDIV4, AspectOf(graphics), 0.5f, 2000.0f);
+	camera.LookAt({ 0.0f, 0.0f, 0.0f });
+
+	bool inMenu = true;
 	bool wireframe = false;
+	bool sampleReady = false;
 
 	window.SetKeyDownHandler([&](WPARAM key)
 	{
-		switch (key)
+		if (key == VK_ESCAPE)
 		{
-		case VK_ESCAPE:
-			if (currentSample == SampleId::None)
+			if (inMenu)
 			{
-				PostQuitMessage(0);                 // 메뉴에서 ESC 는 종료
+				PostQuitMessage(0);
 			}
 			else
 			{
-				currentSample = SampleId::None;     // 샘플에서 ESC 는 메뉴 복귀
+				scenes.Clear(graphics);
+				inMenu = true;
+				sampleReady = false;
 			}
 			return;
+		}
 
-		case 'W':
+		if (key == VK_F1)
+		{
 			wireframe = !wireframe;
 			return;
+		}
 
-		default:
-			if (currentSample == SampleId::None)
-			{
-				menu.OnKeyDown(key);
-			}
-			return;
+		if (inMenu)
+		{
+			menu.OnKeyDown(key);
 		}
 	});
 
 	window.SetMouseMoveHandler([&](int x, int y)
 	{
-		if (currentSample == SampleId::None)
+		if (inMenu)
 		{
 			menu.OnMouseMove(x, y);
+		}
+		else
+		{
+			camera.OnMouseMove(x, y);
 		}
 	});
 
 	window.SetMouseDownHandler([&](int x, int y)
 	{
-		if (currentSample == SampleId::None)
+		if (inMenu)
 		{
 			menu.OnMouseDown(x, y);
 		}
@@ -148,13 +171,24 @@ int APIENTRY wWinMain(
 			if (width > 0 && height > 0)
 			{
 				graphics.Resize(width, height);
+				camera.SetAspect(AspectOf(graphics));
 			}
 		}
 
 		if (const SampleId picked = menu.ConsumeSelection(); picked != SampleId::None)
 		{
-			currentSample = picked;
-			// TODO: 선택된 샘플 씬 로드 / 리소스 생성
+			sampleReady = scenes.Switch(graphics, picked);
+			inMenu = false;
+
+			camera.SetPosition({ 0.0f, 45.0f, -95.0f });
+			camera.LookAt({ 0.0f, 0.0f, 0.0f });
+			camera.EndDrag();
+		}
+
+		if (!inMenu)
+		{
+			camera.Update(deltaTime);
+			scenes.Update(deltaTime);
 		}
 
 		// 타이틀바는 매 프레임 갱신하면 낭비이므로 0.5초 간격으로만 쓴다.
@@ -165,7 +199,7 @@ int APIENTRY wWinMain(
 			wchar_t titleBuffer[256] = {};
 			swprintf_s(titleBuffer,
 				L"[%s] | Wireframe: %s | FPS: %.1f",
-				MenuScene::GetSampleName(currentSample),
+				MenuScene::GetSampleName(inMenu ? SampleId::None : scenes.GetCurrent()),
 				wireframe ? L"ON" : L"OFF",
 				static_cast<float>(framesInInterval) / titleTimer);
 			window.SetTitle(titleBuffer);
@@ -176,21 +210,27 @@ int APIENTRY wWinMain(
 
 		graphics.BeginFrame();
 
-		if (currentSample != SampleId::None)
+		if (!inMenu)
 		{
-			// TODO: graphics.GetCommandList() 로 지형 샘플 렌더링
+			scenes.Render(graphics, camera, wireframe);
 		}
 
 		text.Begin();
 
-		if (currentSample == SampleId::None)
+		if (inMenu)
 		{
 			menu.Render(text, graphics.GetWidth(), graphics.GetHeight());
 		}
 		else
 		{
-			text.Draw(MenuScene::GetSampleName(currentSample), 20.0f, 20.0f, HudColor);
-			text.Draw(HudHint, 20.0f, 20.0f + text.GetLineHeight() + 4.0f, HintColor);
+			const float lineHeight = text.GetLineHeight();
+			text.Draw(MenuScene::GetSampleName(scenes.GetCurrent()), 20.0f, 20.0f, HudColor);
+			text.Draw(HudHint, 20.0f, 20.0f + lineHeight + 4.0f, HintColor);
+
+			if (!sampleReady)
+			{
+				text.Draw(NotReadyText, 20.0f, 20.0f + (lineHeight + 4.0f) * 2.0f, WarnColor);
+			}
 		}
 
 		text.Record(graphics.GetCommandList(), graphics.GetFrameIndex(),
@@ -199,6 +239,7 @@ int APIENTRY wWinMain(
 		graphics.EndFrame();
 	}
 
+	scenes.Clear(graphics);
 	graphics.WaitForGpu();
 	return static_cast<int>(msg.wParam);
 }

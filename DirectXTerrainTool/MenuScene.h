@@ -1,23 +1,8 @@
 ﻿#pragma once
 #include "TextRenderer.h"
+#include "Scene.h"     // SampleId
 #include <string>
 #include <vector>
-
-enum class SampleId
-{
-	None = 0,
-	FlatGrid,
-	PerlinNoise,
-	HeightMap,
-	TextureSplatting,
-	QuadTreeCulling,
-	DistanceLod1,
-	DistanceLod2,
-	Tessellation,
-	SkyDome,
-	PerturbedClouds,
-	InfiniteChunks
-};
 
 class MenuScene
 {
@@ -62,4 +47,3 @@ private:
 	int m_hovered = -1;
 	int m_focused = 0;
 };
-

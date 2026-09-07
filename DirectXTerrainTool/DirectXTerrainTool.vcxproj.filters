@@ -16,6 +16,12 @@
     <Filter Include="Core">
       <UniqueIdentifier>{dc88a036-1c19-419f-b60a-dac0a5366712}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Terrain">
+      <UniqueIdentifier>{d8f4132b-db79-4341-9d72-5eb89354cbcb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="TextRender">
+      <UniqueIdentifier>{2a0c6328-d475-4696-82d6-d5b1ece7ea2a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="framework.h">
@@ -42,6 +48,12 @@
     <ClInclude Include="Window.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="MenuScene.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="TextRenderer.h">
+      <Filter>TextRender</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DirectXTerrainTool.cpp">
@@ -55,6 +67,12 @@
     </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuScene.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="TextRenderer.cpp">
+      <Filter>TextRender</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
